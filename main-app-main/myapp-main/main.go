@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"time"
@@ -12,8 +13,20 @@ import (
 
 type Login struct {
 	HashedPassword string
-	SessioToken    string
+	SessionToken   string
 	CSRFToken      string
+}
+
+var pageTemplate = template.Must(template.ParseFiles("main.html"))
+
+type Note struct {
+	Title   string
+	Content string
+}
+
+type PageData struct {
+	Message string
+	Notes   []Note
 }
 
 var users = map[string]Login{}
@@ -87,14 +100,15 @@ func main() {
 		http.ServeFile(w, r, "index.html")
 	})
 
-	http.HandleFunc("/main", requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "main.html")
-	}))
+	http.HandleFunc("/main", requireAuth(mainPage))
 
 	http.HandleFunc("/register", register)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/logout", logout)
 	http.HandleFunc("/protected", protected)
+	http.HandleFunc("/notes", requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		notesHandler(w, r, db)
+	}))
 
 	// Start the server
 	log.Fatal(http.ListenAndServe(":8000", nil))
@@ -207,8 +221,97 @@ func CreateTable(db *sql.DB) {
     password_hash TEXT NOT NULL
 );`
 
+	query2 := `CREATE TABLE IF NOT EXISTS notes (
+	id SERIAL PRIMARY KEY,
+	userid INTEGER NOT NULL REFERENCES users(id),
+	title TEXT,
+	content TEXT NOT NULL,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);`
+
 	_, err := db.Exec(query)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	_, err = db.Exec(query2)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func mainPage(w http.ResponseWriter, r *http.Request) {
+	sessionCookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	username := sessions[sessionCookie.Value]
+
+	notes, err := fetchUserNotes(username)
+	if err != nil {
+		http.Error(w, "could not load notes", http.StatusInternalServerError)
+		return
+	}
+
+	pageTemplate.Execute(w, PageData{Notes: notes})
+}
+
+func fetchUserNotes(username string) ([]Note, error) {
+	rows, err := db.Query(`SELECT title, content
+	FROM notes
+	WHERE userid = (SELECT id FROM users WHERE username = $1)
+	ORDER BY created_at DESC`, username)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var notes []Note
+	for rows.Next() {
+		var note Note
+		if err := rows.Scan(&note.Title, &note.Content); err != nil {
+			return nil, err
+		}
+		notes = append(notes, note)
+	}
+	return notes, rows.Err()
+}
+
+func notesHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sessionCookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Error(w, "not logged in", http.StatusUnauthorized)
+		return
+	}
+
+	username := sessions[sessionCookie.Value]
+
+	notes := r.FormValue("notes")
+	title := r.FormValue("title")
+
+	if notes == "" || title == "" {
+		http.Error(w, "Notes and title cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	_, err = db.Exec(`
+    INSERT INTO notes (userid, title, content)
+    VALUES ((SELECT id FROM users WHERE username = $1), $2, $3)
+	`, username, title, notes)
+
+	if err != nil {
+
+		http.Error(w, "could not save note", http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprintln(w, "Notes saved successfully!")
+
 }
