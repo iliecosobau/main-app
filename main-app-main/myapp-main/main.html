@@ -161,8 +161,8 @@
           <label for="title">Title</label>
           <input id="title" name="title" type="text" placeholder="Enter a title" />
 
-          <label for="notes">Note</label>
-          <textarea id="notes" name="notes" placeholder="Write your note here..."></textarea>
+          <label for="content">Note</label>
+          <textarea id="content" name="content" placeholder="Write your note here..."></textarea>
 
           <button class="save-btn" type="submit">Save note</button>
         </form>
@@ -170,6 +170,11 @@
 
       <div class="panel">
         <h2>Your saved notes</h2>
+        <form action="/main" method="GET" style="margin-bottom: 1rem;">
+          <label for="search">Search notes</label>
+          <input id="search" name="search" type="text" placeholder="Search by title or content" />
+          <button class="save-btn" type="submit">Search</button>
+        </form>
         {{if .Message}}<p class="success">{{.Message}}</p>{{end}}
 
         <ul class="note-list">
