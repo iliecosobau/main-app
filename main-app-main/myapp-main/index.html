@@ -27,7 +27,7 @@
 <body>
 
 
-  <div class="auth-card">
+  <div class="auth-card" id="login-card">
     <h3 class="text-center mb-4">Login</h3>
     <form action="/login" method="POST">
       <div class="mb-3">
@@ -41,10 +41,12 @@
       <button type="submit" class="btn btn-success w-100">Login</button>
     </form>
 
+    <div class="toggle-link">
+      <a href="#register" class="text-decoration-none" onclick="showAuth('register'); return false;">Register here</a>
+    </div>
   </div>
 
-
-  <div class="auth-card" id="register">
+  <div class="auth-card" id="register" style="display: none;">
     <h3 class="text-center mb-4">Register</h3>
     <form action="/register" method="POST">
       <div class="mb-3">
@@ -58,7 +60,43 @@
       <button type="submit" class="btn btn-primary w-100">Register</button>
     </form>
 
+    <div class="toggle-link">
+      <a href="#login" class="text-decoration-none" onclick="showAuth('login'); return false;">Back to login</a>
+    </div>
   </div>
+
+  <script>
+    function showAuth(mode) {
+      const loginCard = document.getElementById('login-card');
+      const registerCard = document.getElementById('register');
+
+      if (mode === 'register') {
+        loginCard.style.display = 'none';
+        registerCard.style.display = 'block';
+        window.location.hash = 'register';
+      } else {
+        loginCard.style.display = 'block';
+        registerCard.style.display = 'none';
+        window.location.hash = 'login';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.location.hash === '#register') {
+        showAuth('register');
+      } else {
+        showAuth('login');
+      }
+    });
+
+    window.addEventListener('hashchange', function () {
+      if (window.location.hash === '#register') {
+        showAuth('register');
+      } else if (window.location.hash === '#login') {
+        showAuth('login');
+      }
+    });
+  </script>
 
 </body>
 </html>
